@@ -33,14 +33,25 @@ Modify the field Logger.SysLocCode to match the EQuIS sys_loc_code for the locat
 Login to EQuIS Enterprise and create a new API Token through your user profile.
 
 Running as console or daemon:
-EQuISLiveTempestUDP.exe -l LocationCode -h https://EarthSoftServer.local/equis/ -a eW91ciBBUEkgVG9rZW4gSGVyZQ== 
+dotnet run EQuISLiveTempestUDP.dll
 
 ## EQuIS Live Logger Configuration.
 
-Each WeatherFlow station is paired with a network attached hub. Both of these devices have a unique serial number. These serial numbers are used to map both the station and hub to EQuIS loggers by entering the WeatherFlow device's serial number as ST_LOGGER.LOGGER_CODE.
+Modify appsettings.json and provide the following configuration fields.
 
-Similarly, the EQuIS Live logger series is mapped to a UDP message property through ST_LOGGER_SERIES.SENSOR_CODE. Since we're using the NuGet package WeatherFlowUdpListener we'll be using it's class names and properties in SENSOR_CODE. The format for SENSOR_CODE is one of: ClassName.PropertyName or ClassName.PropertyName[index]. The EQuIS EDD WeatherFlow_Live.csv is provided to aid in setting up EQuIS Live Loggers and Logger Series for use with this tool.
+  "EQuISLiveClient":{
+    "BaseUri":"http://localhost/path/api",
+    "Authentication":"Bearer eyJhbGciOiJIU---Tvai72Gg6oj4DyA2DWo8==" ,
+    "LocationCode":"ST-00094830",
+    "HttpTimeOutSeconds": 240
+  }
+
+where 
+  BaseUri is the URL of an EarthSoft EQuIS Enterprise instance. The Uri must end with '/api' or a configuration error will be thrown.
+  Authentication is a bearer token issued by that EQuIS Enterprise instance. This requires a REST API license with both API.Live and API.OData controllers installed. Remember that OData controller requires that the user be granted membership in an ALS (Application Level Security) Role with write permission on DT_LOGGER_DATUM.
+  LocationCode is the unique SYS_LOCE_CODE for the loggers and logger series to be used with this weather station. While EQuIS only requires uniqueness withing a facility, this application requires the SYS_LOC_CODE be unique within the database. We recommend using the Tempest WX Serial Number.
 
 ## Theory of Operation
 
-Upon start up, a REST call is made to retrieve all loggers and logger series associated with the LocationCode provided in the command line using EQuIS REST oData API. When a UDP message is received, WeatherFlowUdpListener parses it into a message class and calls the OnReceiveMessage event handler. The logger is identified by searching the cached colleciton of loggers for one matching SENSOR_CODE==WFMessage.SerialNumber.  For each logger series, a WMMessage property is mapped onto an ST_LOGGER_DATUM object producing a list of DATUM objects. For each DATUM object, a POST call is made to EQuIS API/oData/ST_LOGGER_DATUM making the data available in near real time.
+Upon start up, a REST call is made to retrieve all loggers and logger series associated with the LocationCode provided in the command line using EQuIS REST oData API. When a UDP message is received from the Hum, the payload is parsed using NuGet package WeatherFlowUdpListener. Individual data points are forwarded to EQuIS through it's OData REST API controller.
+
